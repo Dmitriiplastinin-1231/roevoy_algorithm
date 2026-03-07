@@ -5,6 +5,7 @@
 Используется только стандартный модуль random.
 """
 
+import math
 import random
 from typing import Callable, List, Tuple, Optional
 
@@ -51,6 +52,8 @@ class PSO:
         c1: float = 1.49618,
         c2: float = 1.49618,
         seed: Optional[int] = None,
+        use_constriction: bool = False,
+        kappa: float = 1.0,
     ):
         """
         Args:
@@ -59,10 +62,14 @@ class PSO:
             bounds: ограничения [(min1, max1), (min2, max2), ...].
             num_particles: размер роя.
             max_iterations: максимальное число итераций.
-            w: коэффициент инерции.
+            w: коэффициент инерции (используется, если use_constriction=False).
             c1: когнитивный коэффициент (влияние личного лучшего).
             c2: социальный коэффициент (влияние глобального лучшего).
             seed: фиксация генератора случайных чисел (для воспроизводимости).
+            use_constriction: если True, используется коэффициент сжатия χ
+                вместо инерционного веса w. При этом c1 и c2 должны
+                удовлетворять условию c1 + c2 > 4 (по умолчанию 2.05 + 2.05).
+            kappa: параметр κ ∈ [0, 1] для вычисления χ (по умолчанию 1.0).
         """
         if seed is not None:
             random.seed(seed)
@@ -72,9 +79,26 @@ class PSO:
         self.bounds = bounds
         self.num_particles = num_particles
         self.max_iterations = max_iterations
-        self.w = w
-        self.c1 = c1
-        self.c2 = c2
+        self.use_constriction = use_constriction
+
+        if use_constriction:
+            # При constriction-режиме c1 и c2 берутся как есть (обычно 2.05),
+            # а χ вычисляется из φ = c1 + c2.
+            self.c1 = c1
+            self.c2 = c2
+            phi = self.c1 + self.c2
+            if phi <= 4:
+                raise ValueError(
+                    f"Для коэффициента сжатия требуется φ = c1 + c2 > 4, "
+                    f"получено φ = {phi:.4f}"
+                )
+            self.chi = (2.0 * kappa) / abs(2.0 - phi - math.sqrt(phi ** 2 - 4.0 * phi))
+            self.w = 1.0  # инерционный вес не используется отдельно
+        else:
+            self.w = w
+            self.c1 = c1
+            self.c2 = c2
+            self.chi = None
 
         # Инициализация роя
         self.swarm: List[Particle] = [
@@ -156,9 +180,18 @@ class PSO:
                 self.global_best_position[i] - particle.position[i]
             )
 
-            particle.velocity[i] = (
-                self.w * particle.velocity[i] + cognitive + social
-            )
+            if self.use_constriction:
+                # Модификация коэффициента сжатия:
+                # v = χ · (v + c1·r1·(pbest - x) + c2·r2·(gbest - x))
+                particle.velocity[i] = self.chi * (
+                    particle.velocity[i] + cognitive + social
+                )
+            else:
+                # Классическая формула с инерционным весом:
+                # v = w·v + c1·r1·(pbest - x) + c2·r2·(gbest - x)
+                particle.velocity[i] = (
+                    self.w * particle.velocity[i] + cognitive + social
+                )
 
     def _update_position(self, particle: Particle) -> None:
         """Обновляет позицию частицы и ограничивает её рамками bounds."""

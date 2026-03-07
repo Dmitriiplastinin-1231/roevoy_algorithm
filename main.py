@@ -65,13 +65,15 @@ def custom_function(x: float) -> float:
 # ---------------------------------------------------------------
 
 def run_example(name: str, func, dimensions: int, bounds, known_min: str):
-    """Запуск одного теста."""
+    """Запуск одного теста: сравнение классического PSO и PSO с коэф. сжатия."""
     print(f"\n{'=' * 60}")
-    print(f"  {{name}}")
-    print(f"  Известный минимум: {{known_min}}")
+    print(f"  {name}")
+    print(f"  Известный минимум: {known_min}")
     print(f"{'=' * 60}")
 
-    optimizer = PSO(
+    # --- Классический PSO (инерционный вес) ---
+    print(f"\n  [Классический PSO (w = 0.7298)]")
+    optimizer_classic = PSO(
         func=func,
         dimensions=dimensions,
         bounds=bounds,
@@ -79,13 +81,30 @@ def run_example(name: str, func, dimensions: int, bounds, known_min: str):
         max_iterations=300,
         seed=42,
     )
+    best_pos_c, best_val_c = optimizer_classic.optimize(verbose=True)
+    pos_str_c = ", ".join(f"{x:.8f}" for x in best_pos_c)
+    print(f"\n  Результат (классический):")
+    print(f"    Лучшая позиция : ({pos_str_c})")
+    print(f"    Лучшее значение: {best_val_c:.10f}")
 
-    best_pos, best_val = optimizer.optimize(verbose=True)
-
-    pos_str = ", ".join(f"{{x:.8f}}" for x in best_pos)
-    print(f"\n  Результат:")
-    print(f"    Лучшая позиция : ({{pos_str}})")
-    print(f"    Лучшее значение: {{best_val:.10f}}")
+    # --- PSO с коэффициентом сжатия (Constriction Factor) ---
+    print(f"\n  [PSO с коэффициентом сжатия (χ, c1=c2=2.05)]")
+    optimizer_constr = PSO(
+        func=func,
+        dimensions=dimensions,
+        bounds=bounds,
+        num_particles=40,
+        max_iterations=300,
+        seed=42,
+        use_constriction=True,
+        c1=2.05,
+        c2=2.05,
+    )
+    best_pos_x, best_val_x = optimizer_constr.optimize(verbose=True)
+    pos_str_x = ", ".join(f"{x:.8f}" for x in best_pos_x)
+    print(f"\n  Результат (коэф. сжатия, χ = {optimizer_constr.chi:.6f}):")
+    print(f"    Лучшая позиция : ({pos_str_x})")
+    print(f"    Лучшее значение: {best_val_x:.10f}")
 
 
 if __name__ == "__main__":
